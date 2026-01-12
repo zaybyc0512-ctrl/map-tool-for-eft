@@ -27,16 +27,11 @@ export async function generateMetadata({ params }: { params: Promise<{ mapId: st
 }
 
 export default async function MapPage({
-    params,
-    searchParams
+    params
 }: {
-    params: Promise<{ mapId: string }>,
-    searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+    params: Promise<{ mapId: string }>
 }) {
     const { mapId } = await params;
-    const { state } = await searchParams; // searchParams is also now a promise in latest Next.js canary, safe to await
-
-    // Validate mapId exists, simple fallback if needed (though param validation handles mostly)
 
     const wiki = WIKI_CONTENT[mapId] || { title: 'Custom Map / No Data', content: '<p>No specific guide available for this map.</p>' };
 
@@ -45,7 +40,9 @@ export default async function MapPage({
             <FloatingSearchBar currentMapId={mapId} />
             <ToolPanel />
             <GameMapWrapper mapId={mapId} />
-            {typeof state === 'string' && <SharedMapLoader encodedState={state} />}
+            <Suspense fallback={null}>
+                <SharedMapLoader />
+            </Suspense>
         </div>
     );
 

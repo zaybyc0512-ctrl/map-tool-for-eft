@@ -1,10 +1,13 @@
 "use client";
 
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 import { useMapStore } from '@/lib/store';
 import { SharedMapData } from '@/types/mapData';
 
-export default function SharedMapLoader({ encodedState }: { encodedState?: string }) {
+export default function SharedMapLoader() {
+    const searchParams = useSearchParams();
+    const encodedState = searchParams.get('state');
     const { loadSharedMap } = useMapStore();
     const loadedRef = useRef(false);
 
