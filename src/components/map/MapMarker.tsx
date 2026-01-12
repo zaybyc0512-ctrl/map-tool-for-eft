@@ -17,6 +17,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 interface MapMarkerProps {
     pin: MapPin;
     onDelete?: (id: string) => void;
+    onEdit?: (pin: MapPin) => void; // Added onEdit prop
     readOnly?: boolean;
 }
 
@@ -53,12 +54,20 @@ const createCustomIcon = (color: string, type: string, category?: string) => {
     });
 };
 
-export default function MapMarker({ pin, onDelete, readOnly }: MapMarkerProps) {
+export default function MapMarker({ pin, onDelete, onEdit, readOnly }: MapMarkerProps) {
     return (
         <Marker
             position={[pin.lat, pin.lng]}
             icon={createCustomIcon(pin.color, pin.iconType, pin.category)}
             opacity={readOnly ? 0.8 : 1}
+            eventHandlers={{
+                click: (e) => {
+                    if (onEdit && !readOnly) {
+                        L.DomEvent.stopPropagation(e.originalEvent);
+                        onEdit(pin);
+                    }
+                }
+            }}
         >
             <Popup>
                 <Box sx={{ minWidth: 200, maxWidth: 300 }}>

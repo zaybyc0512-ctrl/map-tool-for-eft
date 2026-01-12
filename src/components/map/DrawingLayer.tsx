@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useMapStore } from '@/lib/store';
 import { v4 as uuidv4 } from 'uuid';
 import L from 'leaflet';
+import MapMarker from './MapMarker';
 
 export default function DrawingLayer() {
     const {
@@ -13,10 +14,14 @@ export default function DrawingLayer() {
         currentMapId,
         addDrawing,
         addPin,
+        updateDrawing,
+        updatePin,
+        removePin, // Needed for MapMarker onDelete
         maps,
         setDrawTool
     } = useMapStore();
 
+    const userPins = maps[currentMapId]?.userPins || [];
     const userDrawings = maps[currentMapId]?.userDrawings || [];
 
     // State for Line Tool
@@ -31,6 +36,7 @@ export default function DrawingLayer() {
         type: 'text' | 'marker';
         value: string;
         category: 'memo' | 'item' | 'danger' | 'task';
+        id?: string; // ID for editing existing items
     }>({
         lat: 0,
         lng: 0,
@@ -45,6 +51,7 @@ export default function DrawingLayer() {
     // State for Image Tool
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [imagePlacement, setImagePlacement] = useState<{ lat: number, lng: number } | null>(null);
+    const [isDraggingMode, setIsDraggingMode] = useState(false);
 
     // Reset temporary states when tool changes
     useEffect(() => {
@@ -54,10 +61,19 @@ export default function DrawingLayer() {
         setImagePlacement(null);
     }, [drawTool]);
 
-    // Focus input when visible
+    // Focus input when visible AND force popup open
+    const popupMarkerRef = useRef<L.Marker>(null);
     useEffect(() => {
-        if (inputState.visible && inputRef.current) {
-            inputRef.current.focus();
+        if (inputState.visible) {
+            // Force open popup
+            if (popupMarkerRef.current) {
+                popupMarkerRef.current.openPopup();
+            }
+            // Focus input
+            if (inputRef.current) {
+                // Short timeout to ensure render
+                setTimeout(() => inputRef.current?.focus(), 50);
+            }
         }
     }, [inputState.visible]);
 
@@ -144,8 +160,10 @@ export default function DrawingLayer() {
             }
         },
         click(e) {
+            // console.log('[DrawingLayer] Click detected', { drawTool, latlng: e.latlng });
             // Text Tool
             if (drawTool === 'text') {
+                // console.log('[DrawingLayer] Activating Text Tool Input');
                 setInputState({
                     lat: e.latlng.lat,
                     lng: e.latlng.lng,
@@ -158,6 +176,7 @@ export default function DrawingLayer() {
             }
             // Marker Tool
             else if (drawTool === 'marker') {
+                // console.log('[DrawingLayer] Activating Marker Tool Input');
                 setInputState({
                     lat: e.latlng.lat,
                     lng: e.latlng.lng,
@@ -170,6 +189,7 @@ export default function DrawingLayer() {
             }
             // Image Tool
             else if (drawTool === 'image') {
+                // console.log('[DrawingLayer] Activating Image Tool');
                 setImagePlacement({ lat: e.latlng.lat, lng: e.latlng.lng });
                 fileInputRef.current?.click();
                 L.DomEvent.stopPropagation(e.originalEvent);
@@ -178,32 +198,60 @@ export default function DrawingLayer() {
     });
 
     const handleInputSubmit = () => {
-        if (inputState.value.trim()) {
+        // For Markers, allow empty title (default to "Pin")
+        // For Text, require value.
+        const effectiveValue = inputState.value.trim() || (inputState.type === 'marker' ? 'Pin' : '');
+
+        if (effectiveValue) {
             if (inputState.type === 'text') {
-                addDrawing(currentMapId, {
-                    id: uuidv4(),
-                    type: 'text',
-                    coordinates: [inputState.lat, inputState.lng],
-                    properties: {
-                        color: selectedColor,
-                        text: inputState.value,
-                        fontSize: 16
-                    }
-                });
+                if (inputState.id) {
+                    // Update existing text
+                    updateDrawing(currentMapId, inputState.id, {
+                        coordinates: [inputState.lat, inputState.lng],
+                        properties: {
+                            text: effectiveValue,
+                            color: selectedColor
+                        }
+                    });
+                } else {
+                    // Create new text
+                    addDrawing(currentMapId, {
+                        id: uuidv4(),
+                        type: 'text',
+                        coordinates: [inputState.lat, inputState.lng],
+                        properties: {
+                            color: selectedColor,
+                            text: effectiveValue,
+                            fontSize: 16
+                        }
+                    });
+                }
             } else if (inputState.type === 'marker') {
-                addPin(currentMapId, {
-                    id: uuidv4(),
-                    lat: inputState.lat,
-                    lng: inputState.lng,
-                    color: selectedColor,
-                    iconType: 'other',
-                    category: inputState.category,
-                    title: inputState.value,
-                    description: '',
-                });
+                if (inputState.id) {
+                    // Update existing marker
+                    updatePin(currentMapId, inputState.id, {
+                        lat: inputState.lat,
+                        lng: inputState.lng,
+                        color: selectedColor,
+                        category: inputState.category,
+                        title: effectiveValue,
+                    });
+                } else {
+                    // Create new marker
+                    addPin(currentMapId, {
+                        id: uuidv4(),
+                        lat: inputState.lat,
+                        lng: inputState.lng,
+                        color: selectedColor,
+                        iconType: 'other',
+                        category: inputState.category,
+                        title: effectiveValue,
+                        description: '',
+                    });
+                }
             }
         }
-        setInputState(prev => ({ ...prev, visible: false, value: "" }));
+        setInputState(prev => ({ ...prev, visible: false, value: "", id: undefined }));
         setDrawTool('pan');
     };
 
@@ -225,6 +273,31 @@ export default function DrawingLayer() {
                 onChange={handleImageUpload}
             />
 
+            {/* User Pins - Rendered in DrawingLayer for unified editing control */}
+            {userPins.map(pin => (
+                <MapMarker
+                    key={pin.id}
+                    pin={pin}
+                    onDelete={(id) => removePin(currentMapId, id)}
+                    onEdit={(pin) => {
+                        if (drawTool === 'pan') {
+                            L.DomEvent.stopPropagation({} as any); // Mock or just rely on click bubbling? Marker usually stops propagation.
+                            // Actually MapMarker onClick handler likely needs to be intercepted or we pass onEdit.
+                            // Assuming MapMarker component accepts onEdit. I need to verify MapMarker definition.
+                            setInputState({
+                                lat: pin.lat,
+                                lng: pin.lng,
+                                visible: true,
+                                type: 'marker',
+                                value: pin.title,
+                                category: pin.category || 'memo',
+                                id: pin.id
+                            });
+                        }
+                    }}
+                />
+            ))}
+
             {/* Existing Drawings */}
             {userDrawings.map((drawing) => {
                 if (drawing.type === 'line' && Array.isArray(drawing.coordinates) && Array.isArray(drawing.coordinates[0])) {
@@ -239,9 +312,10 @@ export default function DrawingLayer() {
                     // ... text rendering
                     const position = (Array.isArray(drawing.coordinates[0]) ? drawing.coordinates[0] : drawing.coordinates) as [number, number];
                     const icon = L.divIcon({
-                        html: `<div style="color: ${drawing.properties.color}; font-size: ${drawing.properties.fontSize}px; white-space: nowrap; font-weight: bold; text-shadow: 1px 1px 0 #fff;">${drawing.properties.text}</div>`,
+                        // Added transform for centering and white-space: nowrap
+                        html: `<div style="transform: translate(-50%, -50%); color: ${drawing.properties.color}; font-size: ${drawing.properties.fontSize}px; white-space: nowrap; font-weight: bold; text-shadow: 1px 1px 0 #fff;">${drawing.properties.text}</div>`,
                         className: 'text-label-icon',
-                        iconSize: [100, 20]
+                        iconSize: [0, 0] // Set to 0,0 so our translate handles centering relative to point
                     });
 
                     return (
@@ -249,7 +323,23 @@ export default function DrawingLayer() {
                             key={drawing.id}
                             position={position}
                             icon={icon}
-                            interactive={false}
+                            interactive={true} // Enable interaction
+                            eventHandlers={{
+                                click: (e) => {
+                                    if (drawTool === 'pan') { // Only edit when in default mode
+                                        L.DomEvent.stopPropagation(e.originalEvent);
+                                        setInputState({
+                                            lat: position[0],
+                                            lng: position[1],
+                                            visible: true,
+                                            type: 'text',
+                                            value: drawing.properties.text,
+                                            category: 'memo',
+                                            id: drawing.id
+                                        });
+                                    }
+                                }
+                            }}
                         />
                     );
                 } else if (drawing.type === 'image' && drawing.properties.imageUrl) {
@@ -292,9 +382,28 @@ export default function DrawingLayer() {
             {/* Unified Input Overlay */}
             {inputState.visible && (
                 <Marker
+                    key={`input-overlay-${inputState.id || 'new'}-${isDraggingMode}`}
+                    ref={popupMarkerRef}
                     position={[inputState.lat, inputState.lng]}
-                    icon={L.divIcon({ className: 'bg-transparent border-none', html: '', iconSize: [0, 0] })}
-                    interactive={false}
+                    icon={isDraggingMode ? L.divIcon({
+                        className: 'bg-transparent border-none',
+                        html: '<div class="w-6 h-6 bg-blue-500 rounded-full border-2 border-white shadow-lg cursor-move"></div>',
+                        iconSize: [24, 24],
+                        iconAnchor: [12, 12]
+                    }) : L.divIcon({
+                        className: 'bg-transparent border-none',
+                        html: '',
+                        iconSize: [0, 0]
+                    })}
+                    interactive={isDraggingMode} // Only interactive when moving
+                    draggable={isDraggingMode}
+                    eventHandlers={{
+                        dragend: (e) => {
+                            const marker = e.target;
+                            const position = marker.getLatLng();
+                            setInputState({ ...inputState, lat: position.lat, lng: position.lng, category: inputState.category as 'memo' | 'item' | 'danger' | 'task' });
+                        }
+                    }}
                 >
                     <Popup
                         closeButton={false}
@@ -307,9 +416,9 @@ export default function DrawingLayer() {
                         <div className="flex flex-col gap-2 p-1">
                             {inputState.type === 'marker' && (
                                 <select
-                                    className="border border-gray-300 rounded px-2 py-1 text-sm outline-none bg-white text-gray-700"
+                                    className="border border-gray-300 rounded px-2 py-1 text-sm outline-none bg-white text-gray-900 pointer-events-auto shadow-sm"
                                     value={inputState.category}
-                                    onChange={(e) => setInputState({ ...inputState, category: e.target.value as any })}
+                                    onChange={(e) => setInputState({ ...inputState, category: e.target.value as 'memo' | 'item' | 'danger' | 'task' })}
                                 >
                                     <option value="memo">📝 Memo</option>
                                     <option value="item">🌟 Item</option>
@@ -323,22 +432,41 @@ export default function DrawingLayer() {
                                 value={inputState.value}
                                 onChange={(e) => setInputState({ ...inputState, value: e.target.value })}
                                 onKeyDown={handleKeyDown}
-                                className="border border-gray-300 rounded px-2 py-1 text-sm outline-none focus:border-blue-500 text-black w-full"
+                                className="border border-gray-300 rounded px-2 py-1 text-sm outline-none focus:border-blue-500 bg-white text-gray-900 w-full pointer-events-auto shadow-sm"
                                 placeholder={inputState.type === 'marker' ? "Pin Title..." : "Enter Text..."}
                             />
-                            <div className="flex justify-end gap-2 mt-1">
+                            <div className="flex justify-between gap-2 mt-1">
                                 <button
-                                    onClick={() => setInputState({ ...inputState, visible: false })}
-                                    className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1"
+                                    onClick={() => {
+                                        // Toggle Move functionality (simple flag in local state would be better but we can reuse a prop or just use boolean toggle here if we restructure)
+                                        // Let's add a local state for 'isMoving' to the component, not inputState to avoid complex types if possible, or just add to inputState.
+                                        // Since inputState is state, let's use a ref or separate state? Separate state handles render updates.
+                                        // But wait, we need to update 'draggable' prop on Marker. 
+                                        // Let's use a new state: isDraggingMode
+                                        setIsDraggingMode(!isDraggingMode);
+                                    }}
+                                    className={`text-xs px-2 py-1 rounded border ${isDraggingMode ? 'bg-yellow-100 border-yellow-400 text-yellow-700' : 'bg-gray-100 border-gray-300 text-gray-600'} hover:bg-gray-200`}
+                                    title="Toggle Move Mode"
                                 >
-                                    Cancel
+                                    {isDraggingMode ? '✋ Moving...' : '✥ Move'}
                                 </button>
-                                <button
-                                    onClick={handleInputSubmit}
-                                    className="text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 font-bold"
-                                >
-                                    OK
-                                </button>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => {
+                                            setInputState({ ...inputState, visible: false, id: undefined });
+                                            setIsDraggingMode(false);
+                                        }}
+                                        className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleInputSubmit}
+                                        className="text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 font-bold"
+                                    >
+                                        OK
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </Popup>

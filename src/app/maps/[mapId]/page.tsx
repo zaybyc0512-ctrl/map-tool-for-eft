@@ -7,7 +7,7 @@ import ToolPanel from '@/components/panels/ToolPanel';
 import GameMapWrapper from '@/components/map/GameMapWrapper';
 import SidebarControlPanel from '@/components/panels/SidebarControlPanel';
 import SharedMapLoader from '@/components/map/SharedMapLoader';
-import GlobalHeader from '@/components/ui/GlobalHeader';
+
 import { Metadata } from 'next';
 
 export async function generateStaticParams() {
@@ -65,7 +65,6 @@ export default async function MapPage({
     // Main Layout: Sidebar (Left) + RightContent
     return (
         <div className="h-screen w-screen overflow-hidden flex flex-col">
-            <GlobalHeader />
             <div className="flex-1 overflow-hidden relative">
                 <ResizableSplitter
                     direction="horizontal"

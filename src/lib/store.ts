@@ -52,8 +52,10 @@ interface MapStoreState {
     // Data Actions
     addPin: (mapId: string, pin: MapPin) => void;
     removePin: (mapId: string, pinId: string) => void;
+    updatePin: (mapId: string, pinId: string, updates: Partial<MapPin>) => void;
     addDrawing: (mapId: string, drawing: MapDrawing) => void;
     removeDrawing: (mapId: string, drawingId: string) => void;
+    updateDrawing: (mapId: string, drawingId: string, updates: Partial<MapDrawing>) => void;
 
     // Actions
     setMapImage: (mapId: string, dataUrl: string) => void;
@@ -180,6 +182,22 @@ export const useMapStore = create<MapStoreState>()(
                 };
             }),
 
+            updatePin: (mapId, pinId, updates) => set((state) => {
+                const mapState = state.maps[mapId];
+                if (!mapState) return state;
+                return {
+                    maps: {
+                        ...state.maps,
+                        [mapId]: {
+                            ...mapState,
+                            userPins: mapState.userPins.map(p =>
+                                p.id === pinId ? { ...p, ...updates } : p
+                            )
+                        }
+                    }
+                };
+            }),
+
             addDrawing: (mapId, drawing) => set((state) => {
                 const mapState = state.maps[mapId] || {
                     mapId, isCustomMap: false, userPins: [], userDrawings: [], activeExtracts: [], manualMarkers: {}
@@ -204,6 +222,22 @@ export const useMapStore = create<MapStoreState>()(
                         [mapId]: {
                             ...mapState,
                             userDrawings: mapState.userDrawings.filter(d => d.id !== drawingId)
+                        }
+                    }
+                };
+            }),
+
+            updateDrawing: (mapId, drawingId, updates) => set((state) => {
+                const mapState = state.maps[mapId];
+                if (!mapState) return state;
+                return {
+                    maps: {
+                        ...state.maps,
+                        [mapId]: {
+                            ...mapState,
+                            userDrawings: mapState.userDrawings.map(d =>
+                                d.id === drawingId ? { ...d, ...updates } : d
+                            )
                         }
                     }
                 };
@@ -298,6 +332,7 @@ export const useMapStore = create<MapStoreState>()(
         {
             name: 'eft-map-storage',
             storage: createJSONStorage(() => localStorage),
+            skipHydration: true,
             partialize: (state) => ({
                 ...state,
                 sharedMapData: {} // Exclude sharedMapData from local storage persistence

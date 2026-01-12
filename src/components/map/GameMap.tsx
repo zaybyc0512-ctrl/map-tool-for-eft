@@ -126,19 +126,14 @@ export default function GameMap({ mapId }: GameMapProps) {
                 <ImageOverlay
                     url={displayImageUrl}
                     bounds={bounds}
+                    interactive={false}
                 />
 
                 <DrawingLayer />
                 <MapInteraction />
 
                 {/* User Pins */}
-                {userPins.map(pin => (
-                    <MapMarker
-                        key={pin.id}
-                        pin={pin}
-                        onDelete={(id) => removePin(mapId, id)}
-                    />
-                ))}
+                {/* User Pins - MOVED TO DrawingLayer for unified editing control */}
 
                 {/* Shared Data Display (Read Only) */}
                 {sharedData && (

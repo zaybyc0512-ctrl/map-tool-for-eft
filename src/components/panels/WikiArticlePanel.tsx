@@ -15,13 +15,15 @@ export default function WikiArticlePanel({ title, content }: WikiArticlePanelPro
             </Typography>
 
             <Box
-                className="prose max-w-none"
+                className="prose max-w-none text-slate-900"
                 dangerouslySetInnerHTML={{ __html: content }}
                 sx={{
-                    '& h2': { fontSize: '1.5rem', fontWeight: 600, mt: 3, mb: 1 },
-                    '& h3': { fontSize: '1.25rem', fontWeight: 600, mt: 2, mb: 1 },
+                    '& h1': { color: '#0f172a' },
+                    '& h2': { fontSize: '1.5rem', fontWeight: 600, mt: 3, mb: 1, color: '#0f172a' },
+                    '& h3': { fontSize: '1.25rem', fontWeight: 600, mt: 2, mb: 1, color: '#0f172a' },
                     '& ul': { paddingLeft: 3, listStyleType: 'disc', mb: 2 },
                     '& p': { mb: 2, lineHeight: 1.6 },
+                    '& strong': { color: '#0f172a' }
                 }}
             />
 
