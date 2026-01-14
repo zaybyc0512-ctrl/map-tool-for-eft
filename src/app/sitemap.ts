@@ -1,5 +1,8 @@
 import { MetadataRoute } from 'next'
 
+// 静的エクスポート（output: 'export'）のためにこの行を追加
+export const dynamic = 'force-static'
+
 export default function sitemap(): MetadataRoute.Sitemap {
     const baseUrl = 'https://map-tool-for-eft.com'
 
