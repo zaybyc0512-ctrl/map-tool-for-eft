@@ -4,7 +4,7 @@ import { MetadataRoute } from 'next'
 export const dynamic = 'force-static'
 
 export default function sitemap(): MetadataRoute.Sitemap {
-    const baseUrl = 'https://map-tool-for-eft.com'
+    const baseUrl = 'https://www.map-tool-for-eft.com'
 
     // サイト内の固定ページ
     const routes = [

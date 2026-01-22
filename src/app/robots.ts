@@ -6,7 +6,7 @@ export default function robots(): MetadataRoute.Robots {
             userAgent: '*',
             allow: '/',
         },
-        sitemap: 'https://map-tool-for-eft.com/sitemap.xml',
+        sitemap: 'https://www.map-tool-for-eft.com/sitemap.xml',
     }
 }
 // ビルドエラー回避のために静的生成を指定
